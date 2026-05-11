@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DistortionMetric — Distortion-Aware Medical Image Similarity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@400;500&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy:      #060F1E;
+  --navy2:     #0B1E38;
+  --navy3:     #112B4F;
+  --blue:      #1A6FE8;
+  --blue2:     #3B8EFF;
+  --teal:      #1BB38A;
+  --teal2:     #0E7A5E;
+  --amber:     #E8A020;
+  --red:       #E84040;
+  --white:     #F4F2EC;
+  --white2:    #E8E5DC;
+  --gray:      #8A8880;
+  --mono:      'DM Mono', monospace;
+  --serif:     'Instrument Serif', Georgia, serif;
+  --sans:      'Syne', system-ui, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--sans);
+  background: var(--navy);
+  color: var(--white);
+  overflow-x: hidden;
+  cursor: none;
+}
+
+/* Custom cursor */
+.cursor {
+  width: 12px; height: 12px;
+  background: var(--teal);
+  border-radius: 50%;
+  position: fixed;
+  top: 0; left: 0;
+  pointer-events: none;
+  z-index: 9999;
+  transition: transform 0.15s ease, background 0.2s;
+  mix-blend-mode: screen;
+}
+.cursor.hover { transform: scale(3); background: var(--blue2); }
+
+/* Noise overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.4;
+}
+
+/* ── NAV ─────────────────────────────────────────────────── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0;
+  z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 48px;
+  background: rgba(6,15,30,0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.nav-logo {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--teal);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.nav-links {
+  display: flex; gap: 36px; list-style: none;
+}
+
+.nav-links a {
+  font-size: 13px;
+  color: rgba(244,242,236,0.55);
+  text-decoration: none;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: color 0.2s;
+}
+.nav-links a:hover { color: var(--white); }
+
+.nav-cta {
+  background: var(--teal);
+  color: var(--navy) !important;
+  padding: 8px 18px;
+  border-radius: 2px;
+  font-weight: 600;
+  color: var(--navy) !important;
+}
+
+/* ── HERO ────────────────────────────────────────────────── */
+.hero {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  padding: 120px 48px 80px;
+  gap: 60px;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::after {
+  content: '';
+  position: absolute;
+  top: -200px; right: -200px;
+  width: 700px; height: 700px;
+  background: radial-gradient(circle, rgba(27,179,138,0.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(27,179,138,0.12);
+  border: 1px solid rgba(27,179,138,0.3);
+  color: var(--teal);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  border-radius: 2px;
+  margin-bottom: 28px;
+}
+
+.hero-badge::before {
+  content: '';
+  width: 6px; height: 6px;
+  background: var(--teal);
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.7); }
+}
+
+.hero h1 {
+  font-family: var(--serif);
+  font-size: clamp(38px, 4.5vw, 68px);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  margin-bottom: 24px;
+}
+
+.hero h1 em {
+  font-style: italic;
+  color: var(--teal);
+}
+
+.hero-sub {
+  font-size: 17px;
+  line-height: 1.7;
+  color: rgba(244,242,236,0.6);
+  max-width: 480px;
+  margin-bottom: 40px;
+}
+
+.hero-actions {
+  display: flex; gap: 16px; flex-wrap: wrap;
+}
+
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 24px;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: 2px;
+  transition: all 0.2s;
+  cursor: none;
+}
+
+.btn-primary {
+  background: var(--teal);
+  color: var(--navy);
+}
+.btn-primary:hover { background: var(--teal2); transform: translateY(-1px); }
+
+.btn-secondary {
+  background: transparent;
+  color: var(--white);
+  border: 1px solid rgba(255,255,255,0.2);
+}
+.btn-secondary:hover { border-color: rgba(255,255,255,0.5); transform: translateY(-1px); }
+
+.btn-ghost {
+  background: transparent;
+  color: rgba(244,242,236,0.6);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.btn-ghost:hover { color: var(--white); border-color: rgba(255,255,255,0.3); }
+
+/* Hero right — metric display */
+.hero-visual {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.metric-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  animation: fadeUp 0.6s ease both;
+  transition: border-color 0.3s, background 0.3s;
+}
+.metric-card:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(27,179,138,0.3);
+}
+
+.metric-card:nth-child(1) { animation-delay: 0.1s; }
+.metric-card:nth-child(2) { animation-delay: 0.2s; }
+.metric-card:nth-child(3) { animation-delay: 0.3s; }
+.metric-card:nth-child(4) { animation-delay: 0.4s; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.metric-info { display: flex; flex-direction: column; gap: 4px; }
+.metric-name {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--gray);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.metric-desc { font-size: 14px; color: rgba(244,242,236,0.8); }
+
+.metric-value {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 500;
+}
+.metric-value.win { color: var(--teal); }
+.metric-value.good { color: var(--blue2); }
+
+.metric-bar-wrap {
+  display: flex; align-items: center; gap: 10px; flex: 1;
+  margin: 0 24px;
+}
+.metric-bar-bg {
+  flex: 1; height: 4px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.metric-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--teal);
+  transition: width 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.vs-pill {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--gray);
+  white-space: nowrap;
+}
+
+/* ── SECTION COMMON ──────────────────────────────────────── */
+section {
+  padding: 100px 48px;
+  position: relative;
+}
+
+.section-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--teal);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+
+.section-title {
+  font-family: var(--serif);
+  font-size: clamp(28px, 3vw, 46px);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin-bottom: 20px;
+}
+
+.section-sub {
+  font-size: 16px;
+  line-height: 1.7;
+  color: rgba(244,242,236,0.55);
+  max-width: 560px;
+}
+
+/* ── STATS BAND ──────────────────────────────────────────── */
+.stats-band {
+  background: var(--navy2);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  padding: 48px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 24px;
+  border-right: 1px solid rgba(255,255,255,0.06);
+  transition: background 0.3s;
+}
+.stat-item:last-child { border-right: none; }
+.stat-item:hover { background: rgba(255,255,255,0.02); }
+
+.stat-num {
+  font-family: var(--serif);
+  font-size: 52px;
+  font-style: italic;
+  color: var(--teal);
+  line-height: 1;
+  margin-bottom: 8px;
+}
+.stat-label {
+  font-size: 13px;
+  color: rgba(244,242,236,0.5);
+  line-height: 1.4;
+}
+.stat-label strong { color: rgba(244,242,236,0.8); display: block; }
+
+/* ── METHOD ──────────────────────────────────────────────── */
+.method-section {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 80px;
+  align-items: start;
+}
+
+.method-steps { display: flex; flex-direction: column; gap: 0; }
+
+.step {
+  display: flex;
+  gap: 20px;
+  padding: 28px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  transition: background 0.2s;
+}
+.step:first-child { padding-top: 0; }
+.step:last-child { border-bottom: none; }
+
+.step-num {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--teal);
+  min-width: 28px;
+  padding-top: 3px;
+}
+
+.step-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--white);
+}
+
+.step-desc {
+  font-size: 14px;
+  line-height: 1.65;
+  color: rgba(244,242,236,0.55);
+}
+
+/* Architecture visual */
+.arch-visual {
+  background: var(--navy2);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 32px;
+}
+
+.arch-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--gray);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+}
+
+.arch-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.arch-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.arch-box {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  border: 1px solid transparent;
+}
+.arch-box.enc   { background: rgba(26,111,232,0.15); border-color: rgba(26,111,232,0.3); color: var(--blue2); }
+.arch-box.anat  { background: rgba(27,179,138,0.15); border-color: rgba(27,179,138,0.3); color: var(--teal); }
+.arch-box.noise { background: rgba(232,160,32,0.15); border-color: rgba(232,160,32,0.3); color: var(--amber); }
+.arch-box.loss  { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: rgba(244,242,236,0.7); font-size: 12px; }
+.arch-box.input { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.08); color: rgba(244,242,236,0.6); }
+
+.arch-arrow { color: rgba(255,255,255,0.25); font-size: 14px; flex-shrink: 0; }
+
+.arch-sep {
+  height: 1px;
+  background: rgba(255,255,255,0.06);
+  margin: 8px 0;
+}
+
+.arch-losses {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.tau-note {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: rgba(232,64,64,0.08);
+  border: 1px solid rgba(232,64,64,0.2);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: rgba(232,64,64,0.8);
+  line-height: 1.6;
+}
+
+/* ── RESULTS ─────────────────────────────────────────────── */
+.results-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-top: 48px;
+}
+
+.result-card {
+  background: var(--navy2);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 28px;
+  transition: border-color 0.3s, transform 0.2s;
+}
+.result-card:hover {
+  border-color: rgba(27,179,138,0.3);
+  transform: translateY(-2px);
+}
+
+.result-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--teal);
+  margin-bottom: 16px;
+}
+
+.result-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+.result-rows { display: flex; flex-direction: column; gap: 10px; }
+
+.result-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.result-metric {
+  font-family: var(--mono);
+  color: var(--gray);
+  min-width: 48px;
+  font-size: 12px;
+}
+
+.result-bar-bg {
+  flex: 1;
+  height: 6px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.result-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  position: absolute;
+  left: 0;
+  transition: width 1.8s cubic-bezier(0.4,0,0.2,1);
+}
+.fill-ours   { background: linear-gradient(90deg, var(--teal), var(--teal2)); }
+.fill-mse    { background: rgba(255,255,255,0.2); }
+.fill-ncc    { background: rgba(255,255,255,0.18); }
+.fill-dino   { background: rgba(59,142,255,0.4); }
+.fill-ssim   { background: rgba(255,255,255,0.15); }
+
+.result-val {
+  font-family: var(--mono);
+  font-size: 13px;
+  min-width: 42px;
+  text-align: right;
+}
+.result-val.ours-val { color: var(--teal); font-weight: 500; }
+
+.win-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  background: rgba(27,179,138,0.15);
+  border: 1px solid rgba(27,179,138,0.25);
+  color: var(--teal);
+  padding: 2px 7px;
+  border-radius: 2px;
+}
+
+/* ── DATASETS ────────────────────────────────────────────── */
+.datasets-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-top: 48px;
+}
+
+.dataset-card {
+  background: var(--navy2);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 32px;
+}
+
+.dataset-icon {
+  width: 44px; height: 44px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  margin-bottom: 20px;
+}
+.dataset-icon.ct { background: rgba(26,111,232,0.15); }
+.dataset-icon.mr { background: rgba(27,179,138,0.15); }
+
+.dataset-name {
+  font-size: 18px; font-weight: 600; margin-bottom: 8px;
+}
+.dataset-sub {
+  font-size: 13px; color: var(--gray); margin-bottom: 20px; line-height: 1.5;
+}
+
+.dataset-stats {
+  display: flex; gap: 24px; flex-wrap: wrap;
+}
+.ds-stat { display: flex; flex-direction: column; gap: 3px; }
+.ds-stat-n {
+  font-family: var(--mono);
+  font-size: 20px;
+  color: var(--white);
+}
+.ds-stat-l { font-size: 11px; color: var(--gray); text-transform: uppercase; letter-spacing: 0.06em; }
+
+/* ── CODE ────────────────────────────────────────────────── */
+.code-section {
+  background: var(--navy2);
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+.code-block {
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 28px 32px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.8;
+  overflow-x: auto;
+  margin-top: 24px;
+}
+
+.c-comment { color: rgba(255,255,255,0.3); }
+.c-keyword { color: var(--blue2); }
+.c-string  { color: var(--teal); }
+.c-func    { color: var(--amber); }
+.c-num     { color: #E88060; }
+
+/* ── CITATION ────────────────────────────────────────────── */
+.citation-box {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-left: 3px solid var(--teal);
+  border-radius: 0 8px 8px 0;
+  padding: 24px 28px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.9;
+  color: rgba(244,242,236,0.6);
+  margin-top: 32px;
+}
+
+/* ── FOOTER ──────────────────────────────────────────────── */
+footer {
+  background: var(--navy2);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding: 48px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.footer-logo {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--teal);
+  letter-spacing: 0.1em;
+}
+
+.footer-links {
+  display: flex; gap: 28px; list-style: none;
+}
+.footer-links a {
+  font-size: 13px;
+  color: rgba(244,242,236,0.4);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.footer-links a:hover { color: var(--white); }
+
+.footer-copy {
+  font-size: 12px;
+  color: rgba(244,242,236,0.3);
+}
+
+/* ── DIVIDER ─────────────────────────────────────────────── */
+.divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+  margin: 0 48px;
+}
+</style>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">&#9632; DistortionMetric</div>
+  <ul class="nav-links">
+    <li><a href="#method">Method</a></li>
+    <li><a href="#results">Results</a></li>
+    <li><a href="#datasets">Datasets</a></li>
+    <li><a href="#code">Code</a></li>
+    <li><a href="https://github.com/zyan6527/distortion-metric" class="nav-cta">GitHub</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-left">
+    <div class="hero-badge">Medical Image Analysis &nbsp;&#8231;&nbsp; USC 2026</div>
+    <h1>A <em>Distortion-Aware</em><br>Learned Similarity<br>Metric</h1>
+    <p class="hero-sub">
+      Classical similarity metrics conflate anatomical identity with acquisition distortion.
+      We propose a metric that explicitly disentangles the two &mdash; tracking distortion
+      severity ordinally while preserving identity discrimination across CT and MRI.
+    </p>
+    <div class="hero-actions">
+      <a href="#" class="btn btn-primary">&#8659; Paper (coming soon)</a>
+      <a href="https://github.com/zyan6527/distortion-metric" class="btn btn-secondary">&#9641; Code</a>
+      <a href="#results" class="btn btn-ghost">View results &darr;</a>
+    </div>
+  </div>
+
+  <div class="hero-visual">
+    <div class="metric-card">
+      <div class="metric-info">
+        <span class="metric-name">Spearman(&alpha;)</span>
+        <span class="metric-desc">Distortion tracking</span>
+      </div>
+      <div class="metric-bar-wrap">
+        <div class="metric-bar-bg"><div class="metric-bar-fill" style="width:0%" id="bar1"></div></div>
+        <span class="vs-pill">vs 0.52 MSE</span>
+      </div>
+      <span class="metric-value win">0.71</span>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-info">
+        <span class="metric-name">Ratio mean</span>
+        <span class="metric-desc">Distortion / identity movement</span>
+      </div>
+      <div class="metric-bar-wrap">
+        <div class="metric-bar-bg"><div class="metric-bar-fill" style="width:0%" id="bar2" style="background:var(--blue2)"></div></div>
+        <span class="vs-pill">vs 0.30 MSE</span>
+      </div>
+      <span class="metric-value win">0.08</span>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-info">
+        <span class="metric-name">AUC benign/malignant</span>
+        <span class="metric-desc">Threshold classification</span>
+      </div>
+      <div class="metric-bar-wrap">
+        <div class="metric-bar-bg"><div class="metric-bar-fill" style="width:0%" id="bar3"></div></div>
+        <span class="vs-pill">vs 0.97 MSE</span>
+      </div>
+      <span class="metric-value win">0.999</span>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-info">
+        <span class="metric-name">mAP retention @&alpha;=0.8</span>
+        <span class="metric-desc">Robustness under distortion</span>
+      </div>
+      <div class="metric-bar-wrap">
+        <div class="metric-bar-bg"><div class="metric-bar-fill" style="width:0%" id="bar4"></div></div>
+        <span class="vs-pill">vs 71% MSE</span>
+      </div>
+      <span class="metric-value good">88%</span>
+    </div>
+  </div>
+</section>
+
+<!-- STATS BAND -->
+<div class="stats-band">
+  <div class="stat-item">
+    <div class="stat-num">2</div>
+    <div class="stat-label"><strong>Modalities</strong>CT &amp; MRI evaluated</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">93</div>
+    <div class="stat-label"><strong>Test patients</strong>across two datasets</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">7</div>
+    <div class="stat-label"><strong>Baselines</strong>MSE, SSIM, NCC, MI, DINO, Grad + CW-SSIM</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">&tau;</div>
+    <div class="stat-label"><strong>Trained threshold</strong>separating benign / malignant distortion</div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- METHOD -->
+<section id="method">
+  <div class="method-section">
+    <div>
+      <div class="section-label">Method</div>
+      <h2 class="section-title">Disentangled<br><em style="font-family:var(--serif);font-style:italic">Siamese</em> Network</h2>
+      <p class="section-sub" style="margin-bottom:32px">
+        A shared ResNet50 encoder separates each image into two orthogonal subspaces:
+        an anatomy head that encodes patient identity, and a noise head that encodes
+        acquisition distortion level.
+      </p>
+
+      <div class="method-steps">
+        <div class="step">
+          <span class="step-num">01</span>
+          <div>
+            <div class="step-title">Shared ResNet50 encoder</div>
+            <div class="step-desc">Processes anchor, positive (distorted same-patient), and negative (different-patient) images through identical weights, extracting 2048-d feature vectors.</div>
+          </div>
+        </div>
+        <div class="step">
+          <span class="step-num">02</span>
+          <div>
+            <div class="step-title">Anatomy head (128-d)</div>
+            <div class="step-desc">L2-normalised embeddings encoding patient identity. Same-patient pairs are pulled together via InfoNCE loss regardless of acquisition distortion level.</div>
+          </div>
+        </div>
+        <div class="step">
+          <span class="step-num">03</span>
+          <div>
+            <div class="step-title">Noise head (64-d) + threshold</div>
+            <div class="step-desc">Encodes acquisition distortion severity. An alpha predictor outputs a_hat &isin; [0,1]. Orthogonality loss forces independence from the anatomy subspace.</div>
+          </div>
+        </div>
+        <div class="step">
+          <span class="step-num">04</span>
+          <div>
+            <div class="step-title">Threshold objective (TAU=0.3)</div>
+            <div class="step-desc">shape_a(&alpha;) targets distances to 0 below TAU (benign, ignored) and rising above TAU (malignant, detected). No classical metric learns this threshold by design.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arch-visual">
+      <div class="arch-title">Architecture overview</div>
+      <div class="arch-flow">
+
+        <div class="arch-row">
+          <div class="arch-box input">Anchor A</div>
+          <div class="arch-box input">Positive P</div>
+          <div class="arch-box input">Negative N</div>
+        </div>
+
+        <div class="arch-row" style="justify-content:center;color:rgba(255,255,255,0.2);font-size:18px">&#8595;</div>
+
+        <div class="arch-row">
+          <div class="arch-box enc" style="flex:3">ResNet50 &mdash; shared weights &mdash; 2048-d</div>
+        </div>
+
+        <div class="arch-row" style="justify-content:center;color:rgba(255,255,255,0.2);font-size:18px">&#8595;</div>
+
+        <div class="arch-row">
+          <div class="arch-box anat">Anatomy head<br><span style="font-size:11px;font-family:var(--mono);opacity:0.7">z_anat 128-d</span></div>
+          <div class="arch-arrow">&nbsp;</div>
+          <div class="arch-box noise">Noise head<br><span style="font-size:11px;font-family:var(--mono);opacity:0.7">z_noise 64-d</span></div>
+        </div>
+
+        <div class="arch-sep"></div>
+
+        <div class="arch-title" style="margin-bottom:12px">Loss terms</div>
+        <div class="arch-losses">
+          <div class="arch-box loss">InfoNCE<br>same-patient cluster</div>
+          <div class="arch-box loss">Distortion regression<br>shape_a(&alpha;) target</div>
+          <div class="arch-box loss">Ordering<br>d_high &gt; d_low</div>
+          <div class="arch-box loss">Noise regression<br>predict true &alpha;</div>
+          <div class="arch-box loss" style="grid-column:1/-1">Orthogonality &mdash; z_anat &perp; z_noise</div>
+        </div>
+
+        <div class="tau-note">
+          shape_a(&alpha;) = 0 &nbsp;for&nbsp; &alpha; &le; TAU=0.3 &nbsp;(benign)<br>
+          shape_a(&alpha;) = expm1(K&middot;(&alpha;&minus;TAU)) / expm1(K&middot;(1&minus;TAU)) &nbsp;for&nbsp; &alpha; &gt; TAU
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- RESULTS -->
+<section id="results">
+  <div class="section-label">Results</div>
+  <h2 class="section-title">Two stories, both won</h2>
+  <p class="section-sub">Evaluated on GoldAtlas (prostate) and CFB-GBM (brain) with bootstrap confidence intervals over 100 resamples.</p>
+
+  <div class="results-grid">
+
+    <div class="result-card">
+      <div class="result-tag">Story 1 &mdash; MR / CFB-GBM</div>
+      <div class="result-title">Distortion awareness &mdash; Spearman(&alpha;)</div>
+      <div class="result-rows">
+        <div class="result-row">
+          <span class="result-metric">ours</span>
+          <div class="result-bar-bg"><div class="result-bar-fill fill-ours" style="width:0%" data-w="85"></div></div>
+          <span class="result-val ours-val">0.688</span>
+          <span class="win-badge">&#9650; best</span>
+        </div>
+        <div class="result-row">
+          <span class="result-metric">MSE</span>
+          <div class="result-bar-bg"><div class="result-bar-fill fill-mse" style="width:0%" data-w="62"></div></div>
+          <span class="result-val">0.524</span>
+        </div>
+        <div class="result-row">
+          <span class="result-metric">NCC</span>
+          <div class="result-bar-bg"><div class="result-bar-fill fill-ncc" style="width:0%" data-w="45"></div></div>
+          <span class="result-val">0.382</span>
+        </div>
+        <div class="result-row">
+          <span class="result-metric">DINO</span>
+          <div class="result-bar-bg"><div class="result-bar-fill fill-dino" style="width:0%" data-w="57"></div></div>
+          <span class="result-val">0.486</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="result-card">
+      <div class="result-tag">Story 2 &mdash; CT / CFB-GBM</div>
+      <div class="result-title">Identity discrimination &mdash; AUC</div>
+      <div class="result-rows">
+        <div class="result-row">
+          <span class="result-metric">ours</span>
+          <div class="result-bar-bg"><div class="result-bar-fill fill-ours" style="width:0%" data-w="99.9"></div></div>
+          <span class="result-val ours-val">0.9993</span>
+          <span class="win-badge">&#9650; best</span>
+        </div>
+        <div class="result-row">
+          <span class="result-metric">MSE</span>
+          <div class="result-bar-bg"><div class="result-bar-fill fill-mse" style="width:0%" data-w="96.8"></div></div>
+          <span class="result-val">0.9683</span>
+        </div>
+        <div class="result-row">
+          <span class="result-metric">SSIM</span>
+          <div class="result-bar-bg"><div class="result-bar-fill fill-ssim" style="width:0%" data-w="94.9"></div></div>
+          <span class="result-val">0.9491</span>
+        </div>
+        <div class="result-row">
+          <span class="result-metric">NCC</span>
+          <div class="result-bar-bg"><div class="result-bar-fill fill-ncc" style="width:0%" data-w="97.9"></div></div>
+          <span class="result-val">0.9789</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="result-card" style="grid-column:1/-1">
+      <div class="result-tag">Robustness &mdash; MR degradation at &alpha;=0.6</div>
+      <div class="result-title">mAP retained under moderate distortion (clinically realistic)</div>
+      <div class="result-rows" style="flex-direction:row;flex-wrap:wrap;gap:20px">
+        <div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:120px">
+          <span style="font-family:var(--mono);font-size:20px;color:var(--teal)">~99%</span>
+          <span style="font-size:12px;color:var(--gray)">ours retained</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:120px">
+          <span style="font-family:var(--mono);font-size:20px;color:rgba(255,255,255,0.5)">~75%</span>
+          <span style="font-size:12px;color:var(--gray)">MSE retained</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:120px">
+          <span style="font-family:var(--mono);font-size:20px;color:rgba(255,255,255,0.5)">~63%</span>
+          <span style="font-size:12px;color:var(--gray)">NCC retained</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:120px">
+          <span style="font-family:var(--mono);font-size:20px;color:rgba(255,255,255,0.5)">~62%</span>
+          <span style="font-size:12px;color:var(--gray)">Grad retained</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:120px">
+          <span style="font-family:var(--mono);font-size:20px;color:rgba(59,142,255,0.8)">~84%</span>
+          <span style="font-size:12px;color:var(--gray)">DINO retained<br><span style="color:rgba(255,255,255,0.3)">(but mAP=0.46 baseline)</span></span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- DATASETS -->
+<section id="datasets">
+  <div class="section-label">Datasets</div>
+  <h2 class="section-title">Two domains,<br>two modalities</h2>
+  <p class="section-sub">Cross-domain evaluation on prostate and brain tumour datasets confirms consistent results independent of anatomy.</p>
+
+  <div class="datasets-grid">
+    <div class="dataset-card">
+      <div class="dataset-icon ct">&#x1F9A0;</div>
+      <div class="dataset-name">GoldAtlas</div>
+      <div class="dataset-sub">Prostate anatomy dataset. CT and T2-MRI volumes with expert segmentations. Used for distortion model development and baseline validation.</div>
+      <div class="dataset-stats">
+        <div class="ds-stat"><span class="ds-stat-n">30</span><span class="ds-stat-l">Patients</span></div>
+        <div class="ds-stat"><span class="ds-stat-n">CT+MR</span><span class="ds-stat-l">Modalities</span></div>
+        <div class="ds-stat"><span class="ds-stat-n">256&sup2;</span><span class="ds-stat-l">Resolution</span></div>
+      </div>
+    </div>
+
+    <div class="dataset-card">
+      <div class="dataset-icon mr">&#x1F9E0;</div>
+      <div class="dataset-name">CFB-GBM</div>
+      <div class="dataset-sub">Glioblastoma multiforme brain tumour dataset. CT and T1 post-Gd MRI. High patient-to-patient variability from tumour heterogeneity and contrast enhancement.</div>
+      <div class="dataset-stats">
+        <div class="ds-stat"><span class="ds-stat-n">93</span><span class="ds-stat-l">Test patients</span></div>
+        <div class="ds-stat"><span class="ds-stat-n">CT+MR</span><span class="ds-stat-l">Modalities</span></div>
+        <div class="ds-stat"><span class="ds-stat-n">53/40</span><span class="ds-stat-l">MR/CT split</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- CODE -->
+<section id="code" class="code-section">
+  <div class="section-label">Quickstart</div>
+  <h2 class="section-title">Use the metric</h2>
+  <p class="section-sub">Load a pretrained checkpoint and compute pairwise distances between medical images.</p>
+
+  <div class="code-block">
+<span class="c-comment"># Install dependencies</span><br>
+<span class="c-keyword">pip install</span> torch torchvision nibabel pydicom opencv-python<br>
+<br>
+<span class="c-comment"># Load pretrained model</span><br>
+<span class="c-keyword">import</span> torch<br>
+<span class="c-keyword">from</span> model <span class="c-keyword">import</span> DisentangledSiamese<br>
+<br>
+model = <span class="c-func">DisentangledSiamese</span>()<br>
+model.<span class="c-func">load_state_dict</span>(torch.<span class="c-func">load</span>(<span class="c-string">"best_mr_cfbgbm.pth"</span>))<br>
+model.<span class="c-func">eval</span>()<br>
+<br>
+<span class="c-comment"># Compute anatomical distance between two images</span><br>
+<span class="c-comment"># Returns value in [0,1]: 0 = same anatomy, 1 = different anatomy</span><br>
+z1, *_ = model.<span class="c-func">forward_once</span>(img_tensor_1)  <span class="c-comment"># (1, 3, 256, 256)</span><br>
+z2, *_ = model.<span class="c-func">forward_once</span>(img_tensor_2)<br>
+distance = <span class="c-num">0.5</span> * (<span class="c-num">1.0</span> - F.<span class="c-func">cosine_similarity</span>(z1, z2))
+  </div>
+
+  <div class="citation-box">
+@article{yan2026distortionmetric,<br>
+&nbsp;&nbsp;title   = {A Distortion-Aware Learned Similarity Metric for Robust Medical Image Retrieval},<br>
+&nbsp;&nbsp;author  = {Yan, Z. and Li, R.},<br>
+&nbsp;&nbsp;journal = {arXiv preprint},<br>
+&nbsp;&nbsp;year    = {2026}<br>
+}
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">&#9632; DistortionMetric</div>
+  <ul class="footer-links">
+    <li><a href="https://github.com/zyan6527/distortion-metric">GitHub</a></li>
+    <li><a href="#">Paper</a></li>
+    <li><a href="#">USC VITERBI</a></li>
+    <li><a href="mailto:zyan6527@usc.edu">Contact</a></li>
+  </ul>
+  <div class="footer-copy">2026 Yan, Li &mdash; University of Southern California</div>
+</footer>
+
+<script>
+// Cursor
+const cursor = document.getElementById('cursor');
+document.addEventListener('mousemove', e => {
+  cursor.style.left = e.clientX - 6 + 'px';
+  cursor.style.top  = e.clientY - 6 + 'px';
+});
+document.querySelectorAll('a, button, .metric-card, .result-card, .dataset-card').forEach(el => {
+  el.addEventListener('mouseenter', () => cursor.classList.add('hover'));
+  el.addEventListener('mouseleave', () => cursor.classList.remove('hover'));
+});
+
+// Animate bars on scroll
+const animateBars = () => {
+  // Hero bars
+  const barData = [
+    { id: 'bar1', w: 85, color: 'var(--teal)' },
+    { id: 'bar2', w: 27, color: 'var(--blue2)' },
+    { id: 'bar3', w: 99, color: 'var(--teal)' },
+    { id: 'bar4', w: 88, color: 'var(--teal)' },
+  ];
+  barData.forEach(({ id, w, color }) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.style.background = color;
+      setTimeout(() => el.style.width = w + '%', 300);
+    }
+  });
+
+  // Result bars
+  document.querySelectorAll('.result-bar-fill').forEach(el => {
+    const w = el.getAttribute('data-w');
+    if (w) setTimeout(() => el.style.width = w + '%', 600);
+  });
+};
+
+// Intersection observer for result bars
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) { animateBars(); observer.disconnect(); } });
+}, { threshold: 0.2 });
+
+const resultsEl = document.getElementById('results');
+if (resultsEl) observer.observe(resultsEl);
+
+// Trigger hero bars on load
+setTimeout(animateBars, 500);
+</script>
+</body>
+</html>
