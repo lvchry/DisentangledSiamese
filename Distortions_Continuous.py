@@ -5,7 +5,7 @@ from numpy.fft import fft2, ifft2, fftshift, ifftshift
 import cv2
 
 # ------------------ CORE IDEA ------------------
-# Every parameter is scaled directly by a âˆˆ [0,1]
+# Every parameter is scaled directly by a ¡Ê [0,1]
 
 # ---------- CT ----------
 
